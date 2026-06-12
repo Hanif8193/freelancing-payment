@@ -7,7 +7,18 @@ An AI-powered payment platform where autonomous agents help freelancers and clie
 
 ---
 
-## Demo
+## Live Demo
+
+| | URL |
+|---|---|
+| **Frontend** | https://frontend-hazel-gamma-xtb0q17d6f.vercel.app |
+| **Backend API** | https://backend-zeta-five-75.vercel.app |
+| **API Docs (Swagger)** | https://backend-zeta-five-75.vercel.app/docs |
+| **GitHub** | https://github.com/Hanif8193/freelancing-payment |
+
+---
+
+## Features
 
 | Feature | Status |
 |---------|--------|
@@ -64,8 +75,8 @@ An AI-powered payment platform where autonomous agents help freelancers and clie
 ### 1 — Clone & install
 
 ```bash
-git clone <repo-url>
-cd "freelancing payment"
+git clone https://github.com/Hanif8193/freelancing-payment.git
+cd freelancing-payment
 ```
 
 ### 2 — Backend
@@ -232,7 +243,10 @@ freelancing payment/
 - **Challenge**: Stablecoin Commerce Stack Challenge
 - **Track**: Agentic Economy Experience
 - **Sponsor**: Circle (Arc Blockchain)
-- **Demo Script**: Create invoice → AI summary → submit → AI explain → approve → Pay Now (USDC) → AI receipt
+- **Live App**: https://frontend-hazel-gamma-xtb0q17d6f.vercel.app
+- **API**: https://backend-zeta-five-75.vercel.app/docs
+- **Repo**: https://github.com/Hanif8193/freelancing-payment
+- **Demo Script**: [`demo-script.md`](./demo-script.md) — Create invoice → AI summary → submit → AI explain → approve → Pay Now (USDC) → AI receipt
 
 ---
 
