@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     CIRCLE_SIMULATE: bool = True
 
     ENVIRONMENT: str = "development"
+    FRONTEND_URL: str = "http://localhost:3000"
 
 
 settings = Settings()
