@@ -1,0 +1,570 @@
+openapi: "3.0.3"
+info:
+  title: AI Freelancer Payment Agent API
+  version: "1.0.0"
+  description: |
+    Backend API for the AI Freelancer Payment Agent.
+    All endpoints except /auth/register and /auth/login require Bearer JWT authentication.
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://your-backend.onrender.com
+    description: Production (Render)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        full_name: { type: string }
+        role: { type: string, enum: [FREELANCER, CLIENT, ADMIN] }
+        bio: { type: string, nullable: true }
+        wallet_address: { type: string, nullable: true }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    RegisterRequest:
+      type: object
+      required: [email, password, full_name, role]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        full_name: { type: string }
+        role: { type: string, enum: [FREELANCER, CLIENT] }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, default: bearer }
+        user: { $ref: '#/components/schemas/User' }
+
+    LineItem:
+      type: object
+      required: [description, quantity, unit_price]
+      properties:
+        description: { type: string }
+        quantity: { type: number, minimum: 0.01 }
+        unit_price: { type: number, minimum: 0 }
+        total: { type: number, readOnly: true }
+
+    InvoiceStatus:
+      type: string
+      enum: [DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, SETTLED, OVERDUE]
+
+    Invoice:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        line_items: { type: array, items: { $ref: '#/components/schemas/LineItem' } }
+        total_amount: { type: number }
+        currency: { type: string, default: USDC }
+        due_date: { type: string, format: date }
+        payment_terms: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/InvoiceStatus' }
+        freelancer_id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CreateInvoiceRequest:
+      type: object
+      required: [title, line_items, due_date, client_id]
+      properties:
+        title: { type: string }
+        line_items: { type: array, items: { $ref: '#/components/schemas/LineItem' }, minItems: 1 }
+        due_date: { type: string, format: date }
+        payment_terms: { type: string }
+        client_id: { type: string, format: uuid }
+
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        invoice_id: { type: string, format: uuid }
+        actor_id: { type: string, format: uuid }
+        prev_status: { type: string, nullable: true }
+        new_status: { type: string }
+        note: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    Transaction:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        invoice_id: { type: string, format: uuid }
+        sender_wallet: { type: string }
+        receiver_wallet: { type: string }
+        amount: { type: number }
+        currency: { type: string }
+        tx_hash: { type: string, nullable: true }
+        status: { type: string, enum: [PENDING, CONFIRMED, FAILED] }
+        initiated_at: { type: string, format: date-time }
+        settled_at: { type: string, format: date-time, nullable: true }
+
+    AIResponse:
+      type: object
+      properties:
+        text: { type: string }
+        agent_type: { type: string }
+        is_fallback: { type: boolean }
+        latency_ms: { type: integer }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        message: { type: string }
+        is_read: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    ErrorResponse:
+      type: object
+      properties:
+        detail: { type: string }
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+
+  /api/auth/register:
+    post:
+      summary: Register new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { description: User created, content: { application/json: { schema: { $ref: '#/components/schemas/TokenResponse' } } } }
+        '409': { description: Email already registered }
+        '422': { description: Validation error }
+
+  /api/auth/login:
+    post:
+      summary: Login and receive JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { description: Login successful, content: { application/json: { schema: { $ref: '#/components/schemas/TokenResponse' } } } }
+        '401': { description: Invalid credentials }
+
+  /api/auth/me:
+    get:
+      summary: Get current user profile
+      responses:
+        '200': { description: Current user, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+    patch:
+      summary: Update current user profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name: { type: string }
+                bio: { type: string }
+      responses:
+        '200': { description: Updated user }
+
+  /api/invoices:
+    get:
+      summary: List invoices for current user
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/InvoiceStatus' }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Invoice' } }
+                  total: { type: integer }
+                  page: { type: integer }
+
+    post:
+      summary: Create new invoice (FREELANCER only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateInvoiceRequest' }
+      responses:
+        '201': { description: Invoice created, content: { application/json: { schema: { $ref: '#/components/schemas/Invoice' } } } }
+        '403': { description: Only freelancers can create invoices }
+        '422': { description: Validation error }
+
+  /api/invoices/{id}:
+    get:
+      summary: Get invoice details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Invoice details, content: { application/json: { schema: { $ref: '#/components/schemas/Invoice' } } } }
+        '404': { description: Invoice not found }
+
+    patch:
+      summary: Update DRAFT invoice (owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateInvoiceRequest' }
+      responses:
+        '200': { description: Updated invoice }
+        '403': { description: Cannot edit non-DRAFT invoice or not owner }
+
+    delete:
+      summary: Delete DRAFT invoice (owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Invoice deleted }
+        '403': { description: Cannot delete non-DRAFT invoice }
+
+  /api/invoices/{id}/submit:
+    post:
+      summary: Submit DRAFT invoice for approval
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Invoice submitted, status → PENDING_APPROVAL }
+        '403': { description: Not the invoice owner }
+        '422': { description: Invoice is not in DRAFT status }
+
+  /api/invoices/{id}/approve:
+    post:
+      summary: Approve invoice (assigned CLIENT only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Invoice approved, status → APPROVED }
+        '403': { description: Not the assigned client }
+
+  /api/invoices/{id}/reject:
+    post:
+      summary: Reject invoice with reason (assigned CLIENT only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 10 }
+      responses:
+        '200': { description: Invoice rejected, status → REJECTED }
+
+  /api/invoices/{id}/audit:
+    get:
+      summary: Get invoice audit trail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Audit trail
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AuditEntry' }
+
+  /api/payments/{invoice_id}/pay:
+    post:
+      summary: Initiate USDC settlement (CLIENT only)
+      parameters:
+        - name: invoice_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202': { description: Payment initiated, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
+        '403': { description: Not the assigned client }
+        '409': { description: Invoice already settled or not in APPROVED status }
+
+  /api/payments/{invoice_id}:
+    get:
+      summary: Get transaction details for invoice
+      parameters:
+        - name: invoice_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Transaction details, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
+        '404': { description: No transaction found for invoice }
+
+  /api/payments:
+    get:
+      summary: List all transactions for current user
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, CONFIRMED, FAILED] }
+      responses:
+        '200':
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Transaction' }
+
+  /api/ai/invoice/{id}/summarize:
+    post:
+      summary: Generate plain-language invoice summary (Invoice Agent)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: AI summary, content: { application/json: { schema: { $ref: '#/components/schemas/AIResponse' } } } }
+
+  /api/ai/invoice/{id}/explain:
+    post:
+      summary: Explain invoice to client in plain language (Invoice Agent)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: AI explanation, content: { application/json: { schema: { $ref: '#/components/schemas/AIResponse' } } } }
+
+  /api/ai/invoice/{id}/validate:
+    post:
+      summary: Detect missing or incomplete invoice fields (Invoice Agent)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  is_complete: { type: boolean }
+                  missing_fields: { type: array, items: { type: string } }
+                  suggestions: { type: array, items: { type: string } }
+                  ai_response: { $ref: '#/components/schemas/AIResponse' }
+
+  /api/ai/invoice/{id}/suggest-terms:
+    post:
+      summary: Suggest standard payment terms (Invoice Agent)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Term suggestions, content: { application/json: { schema: { $ref: '#/components/schemas/AIResponse' } } } }
+
+  /api/ai/payment/{tx_id}/receipt:
+    post:
+      summary: Generate plain-language payment receipt (Finance Agent)
+      parameters:
+        - name: tx_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: AI receipt, content: { application/json: { schema: { $ref: '#/components/schemas/AIResponse' } } } }
+
+  /api/ai/reminders/run:
+    post:
+      summary: Trigger Reminder Agent to process all due/overdue invoices
+      responses:
+        '200':
+          description: Reminders sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reminders_sent: { type: integer }
+                  invoices_marked_overdue: { type: integer }
+
+  /api/ai/logs:
+    get:
+      summary: Get AI agent logs for current user's invoices
+      responses:
+        '200':
+          description: AI logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    agent_type: { type: string }
+                    invoice_id: { type: string, format: uuid }
+                    output_text: { type: string }
+                    latency_ms: { type: integer }
+                    is_fallback: { type: boolean }
+                    created_at: { type: string, format: date-time }
+
+  /api/notifications:
+    get:
+      summary: List notifications for current user
+      parameters:
+        - name: unread_only
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Notification' }
+
+  /api/notifications/{id}/read:
+    patch:
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Notification marked read }
+
+  /api/admin/users:
+    get:
+      summary: List all users (ADMIN only)
+      responses:
+        '200':
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+
+  /api/admin/users/{id}:
+    patch:
+      summary: Update user status (ADMIN only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_active: { type: boolean }
+      responses:
+        '200': { description: User updated }
+
+  /api/admin/transactions:
+    get:
+      summary: List all transactions (ADMIN only)
+      responses:
+        '200':
+          description: All transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Transaction' }
+
+  /api/admin/metrics:
+    get:
+      summary: Get aggregate platform metrics (ADMIN only)
+      responses:
+        '200':
+          description: Platform metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_users: { type: integer }
+                  total_invoices: { type: integer }
+                  total_transactions: { type: integer }
+                  total_usdc_volume: { type: number }
+                  pending_invoices: { type: integer }
+                  settled_invoices: { type: integer }
