@@ -19,6 +19,7 @@ const pageTitles: Record<string, string> = {
   "/admin/users": "User Management",
   "/admin/transactions": "Transaction Monitor",
   "/profile": "Profile",
+  "/chat": "AI Chat",
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

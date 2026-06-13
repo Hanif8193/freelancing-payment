@@ -11,6 +11,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["FREELANCER", "CLIENT", "ADMIN"] },
   { href: "/invoices", label: "Invoices", icon: FileText, roles: ["FREELANCER", "CLIENT"] },
   { href: "/transactions", label: "Transactions", icon: History, roles: ["FREELANCER", "CLIENT", "ADMIN"] },
+  { href: "/chat", label: "AI Chat", icon: Bot, roles: ["FREELANCER", "CLIENT", "ADMIN"] },
   { href: "/admin", label: "Admin", icon: Users, roles: ["ADMIN"] },
   { href: "/admin/ai-logs", label: "AI Logs", icon: Bot, roles: ["ADMIN"] },
 ] as const;
