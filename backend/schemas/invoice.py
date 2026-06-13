@@ -22,7 +22,7 @@ class LineItemSchema(BaseModel):
 class CreateInvoiceRequest(BaseModel):
     title: str
     line_items: list[LineItemSchema]
-    due_date: date
+    due_date: date | None = None
     payment_terms: str | None = None
     client_id: uuid.UUID
 
@@ -78,7 +78,7 @@ class InvoiceResponse(BaseModel):
     line_items: list[dict[str, Any]]
     total_amount: float
     currency: str
-    due_date: date
+    due_date: date | None
     payment_terms: str | None
     status: InvoiceStatus
     freelancer_id: uuid.UUID
