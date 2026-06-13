@@ -172,6 +172,8 @@ He pays. The USDC transfer settles on Arc Testnet in seconds. The **Finance Agen
 
 ## Architecture
 
+![System Architecture](docs/architecture-diagram.png)
+
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                      Next.js 15 Frontend                         │
@@ -365,28 +367,136 @@ Open: http://localhost:3000
 
 ```
 freelancing-payment/
-├── backend/
-│   ├── agents/          # AI agents: invoice · finance · reminder
-│   ├── api/routes/      # FastAPI routers
-│   ├── models/          # SQLAlchemy ORM models
-│   ├── repositories/    # Database query layer
-│   ├── services/        # Business logic + Circle integration
-│   ├── schemas/         # Pydantic request / response models
-│   ├── templates/       # HTML receipt template (PDF generation)
-│   ├── alembic/         # Database migrations
-│   └── main.py
-├── frontend/
+│
+├── backend/                          # FastAPI application
+│   ├── agents/                       # Claude AI agents
+│   │   ├── base_agent.py             # Shared agent base class
+│   │   ├── invoice_agent.py          # Summary · validation · explanation · terms
+│   │   ├── finance_agent.py          # Receipt generation · payment insights
+│   │   └── reminder_agent.py         # Due-date & overdue follow-up messages
+│   │
+│   ├── api/
+│   │   ├── dependencies.py           # JWT auth dependency injection
+│   │   └── routes/
+│   │       ├── auth.py               # /api/auth — register · login
+│   │       ├── invoices.py           # /api/invoices — CRUD + state transitions
+│   │       ├── payments.py           # /api/payments — USDC transfer · history
+│   │       ├── ai.py                 # /api/ai — agent endpoints · streaming chat
+│   │       ├── notifications.py      # /api/notifications — in-app alerts
+│   │       ├── dashboard.py          # /api/dashboard — summary stats
+│   │       ├── users.py              # /api/users — profile · lookup by email
+│   │       └── admin.py              # /api/admin — users · transactions · AI logs
+│   │
+│   ├── models/                       # SQLAlchemy ORM models
+│   │   ├── user.py                   # User (FREELANCER · CLIENT · ADMIN)
+│   │   ├── invoice.py                # Invoice + line items + audit trail
+│   │   ├── transaction.py            # USDC transaction records
+│   │   ├── notification.py           # In-app notification records
+│   │   └── ai_log.py                 # AI agent call logs
+│   │
+│   ├── repositories/                 # Database query layer
+│   │   ├── user_repository.py
+│   │   ├── invoice_repository.py
+│   │   └── transaction_repository.py
+│   │
+│   ├── schemas/                      # Pydantic v2 request/response models
+│   │   ├── auth.py
+│   │   ├── invoice.py
+│   │   ├── payment.py
+│   │   ├── notification.py
+│   │   └── ai.py
+│   │
+│   ├── services/                     # Business logic
+│   │   ├── auth_service.py           # JWT creation · password hashing
+│   │   ├── invoice_service.py        # Invoice lifecycle orchestration
+│   │   ├── payment_service.py        # Circle API integration
+│   │   ├── blockchain_service.py     # Arc Testnet · tx hash recording
+│   │   ├── notification_service.py   # Notification dispatch
+│   │   └── pdf_service.py            # Jinja2 → WeasyPrint PDF receipts
+│   │
+│   ├── templates/
+│   │   └── receipt.html              # HTML receipt template (PDF generation)
+│   │
+│   ├── alembic/                      # Database migrations
+│   │   ├── env.py
+│   │   └── versions/
+│   │
+│   ├── config.py                     # Pydantic settings (env vars)
+│   ├── database.py                   # Async SQLAlchemy engine + session
+│   ├── main.py                       # FastAPI app factory · CORS · routers
+│   ├── vercel.json                   # Vercel serverless config
+│   └── requirements.txt
+│
+├── frontend/                         # Next.js 15 application
 │   ├── app/
-│   │   ├── (auth)/      # login · register
-│   │   └── (dashboard)/ # invoices · transactions · admin · chat
+│   │   ├── (auth)/                   # Unauthenticated route group
+│   │   │   ├── login/page.tsx
+│   │   │   └── register/page.tsx
+│   │   │
+│   │   ├── (dashboard)/              # Authenticated route group
+│   │   │   ├── layout.tsx            # Sidebar + header shell
+│   │   │   ├── dashboard/page.tsx    # Overview stats
+│   │   │   ├── invoices/
+│   │   │   │   ├── page.tsx          # Invoice list
+│   │   │   │   ├── new/page.tsx      # Create invoice form
+│   │   │   │   └── [id]/page.tsx     # Invoice detail + AI panels + payment
+│   │   │   ├── transactions/page.tsx # Payment history
+│   │   │   ├── chat/page.tsx         # Streaming AI chat interface
+│   │   │   └── admin/
+│   │   │       ├── page.tsx          # Admin overview
+│   │   │       ├── users/page.tsx    # User management
+│   │   │       ├── transactions/page.tsx
+│   │   │       └── ai-logs/page.tsx  # Agent call logs
+│   │   │
+│   │   └── api/
+│   │       └── chat/route.ts         # Edge route — proxies Claude streaming
+│   │
 │   ├── components/
-│   │   ├── ai/          # AI panels: summary · explanation · receipt
-│   │   ├── invoice/     # Invoice form, status badge, audit trail
-│   │   ├── payment/     # Payment button, transaction card
-│   │   └── ui/          # ShadCN component library
-│   ├── services/        # API service layer (Axios)
-│   └── types/           # TypeScript interfaces
-└── specs/               # Spec-Driven Development artifacts
+│   │   ├── ai/
+│   │   │   ├── AISummaryPanel.tsx    # Freelancer-facing invoice summary
+│   │   │   ├── AIExplanationPanel.tsx# Client-facing plain-language breakdown
+│   │   │   ├── AIReceiptPanel.tsx    # Post-payment AI receipt
+│   │   │   └── AITermsPanel.tsx      # Payment term suggestions
+│   │   ├── invoice/
+│   │   │   ├── InvoiceForm.tsx       # Line-item builder + client lookup
+│   │   │   ├── InvoiceStatusBadge.tsx
+│   │   │   └── AuditTrail.tsx        # Timestamped state transition log
+│   │   ├── payment/
+│   │   │   ├── PaymentButton.tsx     # USDC pay now trigger
+│   │   │   └── TransactionCard.tsx
+│   │   ├── layout/
+│   │   │   ├── Header.tsx
+│   │   │   └── Sidebar.tsx
+│   │   └── ui/                       # ShadCN component library
+│   │       └── (button · card · badge · dialog · input · table …)
+│   │
+│   ├── services/                     # Axios API service layer
+│   │   ├── api.ts                    # Axios instance + interceptors
+│   │   ├── authService.ts
+│   │   ├── invoiceService.ts
+│   │   ├── paymentService.ts
+│   │   ├── aiService.ts
+│   │   └── userService.ts
+│   │
+│   ├── types/                        # TypeScript interfaces
+│   │   ├── user.ts
+│   │   ├── invoice.ts
+│   │   └── payment.ts
+│   │
+│   ├── lib/utils.ts                  # cn() + shared helpers
+│   ├── next.config.ts
+│   ├── tailwind.config.ts
+│   └── package.json
+│
+├── docs/
+│   ├── architecture-diagram.png      # System architecture diagram
+│   ├── architecture.md
+│   └── generate_diagram.py           # Diagram generation script (matplotlib)
+│
+├── specs/                            # Spec-Driven Development artifacts
+├── demo-script.md                    # Step-by-step hackathon demo guide
+├── CLAUDE.md                         # AI agent instructions
+└── README.md
 ```
 
 ---
