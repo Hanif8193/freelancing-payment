@@ -261,7 +261,7 @@ export function InvoiceForm({ onSubmit, isLoading, defaultClientId }: InvoiceFor
       </Card>
 
       <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Creating…" : "Create Invoice"}
+        {isLoading ? "Creating Invoice..." : "Create Invoice"}
       </Button>
     </form>
   );
